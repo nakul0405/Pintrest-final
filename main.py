@@ -4,77 +4,142 @@ import time
 import telebot
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
-from dotenv import load_dotenv
+from threading import Thread
 
-# Load from Zeabur environment variables
+# Load environment variables (Zeabur: use panel, no .env)
 EMAIL = os.environ["PINTEREST_EMAIL"]
 PASSWORD = os.environ["PINTEREST_PASSWORD"]
-USERNAME = os.environ["PINTEREST_USERNAME"]
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-def load_old_pins():
+# Track multiple profiles (saved in a local file)
+TRACK_FILE = "tracked_profiles.json"
+PIN_DB_FILE = "old_pins.json"
+
+# Load tracked profiles
+def load_profiles():
     try:
-        with open("old_pins.json", "r") as f:
+        with open(TRACK_FILE, 'r') as f:
             return json.load(f)
     except:
         return []
 
-def save_pins(pins):
-    with open("old_pins.json", "w") as f:
-        json.dump(pins, f)
+# Save updated profile list
+def save_profiles(profiles):
+    with open(TRACK_FILE, 'w') as f:
+        json.dump(profiles, f)
 
-def login_and_scrape():
+# Load already seen pins
+def load_old_pins():
+    try:
+        with open(PIN_DB_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+# Save updated pin db
+def save_old_pins(data):
+    with open(PIN_DB_FILE, "w") as f:
+        json.dump(data, f)
+
+# Login + scrape saved pins
+def scrape_saved_pins(username):
     options = uc.ChromeOptions()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     driver = uc.Chrome(options=options)
 
-    print("🔐 Logging into Pinterest...")
-    driver.get("https://www.pinterest.com/login")
-    time.sleep(4)
+    try:
+        driver.get("https://www.pinterest.com/login")
+        time.sleep(4)
+        driver.find_element(By.NAME, "id").send_keys(EMAIL)
+        driver.find_element(By.NAME, "password").send_keys(PASSWORD)
+        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+        time.sleep(6)
 
-    driver.find_element(By.NAME, "id").send_keys(EMAIL)
-    driver.find_element(By.NAME, "password").send_keys(PASSWORD)
-    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-    time.sleep(6)
+        driver.get(f"https://www.pinterest.com/{username}/_saved")
+        time.sleep(5)
 
-    print("📥 Opening /saved tab...")
-    driver.get(f"https://www.pinterest.com/{USERNAME}/_saved")
-    time.sleep(6)
+        for _ in range(2):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
 
-    # Optional: scroll to load more pins
-    for _ in range(3):
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(3)
+        pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
+        pin_links = list(set(["https://www.pinterest.com" + p.get_attribute("href") for p in pins]))
 
-    print("🔍 Scraping pin URLs...")
-    pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
-    pin_links = list(set(["https://www.pinterest.com" + p.get_attribute("href") for p in pins]))
+        return pin_links
+    except Exception as e:
+        print(f"⚠️ Error scraping {username}: {e}")
+        return []
+    finally:
+        driver.quit()
 
-    driver.quit()
-    return pin_links
+# Check for new pins and notify
+def check_all_profiles():
+    tracked = load_profiles()
+    old_data = load_old_pins()
 
-def check_and_notify():
-    current_pins = login_and_scrape()
-    old_pins = load_old_pins()
-    new_pins = [p for p in current_pins if p not in old_pins]
+    for username in tracked:
+        print(f"🔍 Checking pins for: {username}")
+        pins = scrape_saved_pins(username)
 
-    if new_pins:
-        print(f"🆕 Found {len(new_pins)} new pins.")
-        for pin in new_pins:
-            bot.send_message(CHAT_ID, f"🆕 New pin saved:\n{pin}")
-        save_pins(current_pins)
-    else:
-        print("📭 No new pins found.")
+        if username not in old_data:
+            old_data[username] = pins
+            continue
 
-# Run once
-check_and_notify()
+        new_pins = [p for p in pins if p not in old_data[username]]
+        if new_pins:
+            for pin in new_pins:
+                bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
+            old_data[username].extend(new_pins)
 
-# Optional: Continuous polling every 15 minutes
-# while True:
-#     check_and_notify()
-#     time.sleep(900)  # 15 min
+    save_old_pins(old_data)
+
+# Telegram command: /start
+@bot.message_handler(commands=['start'])
+def start_handler(message):
+    bot.reply_to(message, "👋 Bot is live! Use /track <pinterest_profile_url> to track saved pins.")
+
+# Telegram command: /track <url>
+@bot.message_handler(commands=['track'])
+def track_handler(message):
+    text = message.text.strip()
+    parts = text.split()
+
+    if len(parts) != 2 or "pinterest.com" not in parts[1]:
+        bot.reply_to(message, "❌ Invalid format. Use: /track https://www.pinterest.com/username/_saved")
+        return
+
+    # Extract username from URL
+    url = parts[1]
+    try:
+        username = url.split("pinterest.com/")[1].split("/")[0]
+    except:
+        bot.reply_to(message, "❌ Couldn't extract username. Check the URL.")
+        return
+
+    tracked = load_profiles()
+    if username in tracked:
+        bot.reply_to(message, f"✅ Already tracking `{username}`.")
+        return
+
+    tracked.append(username)
+    save_profiles(tracked)
+    bot.reply_to(message, f"📌 Now tracking `{username}` for new saved pins.")
+
+# Background thread for periodic checking
+def start_polling_loop():
+    while True:
+        print("⏰ Running scheduled check...")
+        check_all_profiles()
+        time.sleep(90)  # Every 15 minutes
+
+# Start background thread
+Thread(target=start_polling_loop, daemon=True).start()
+
+# Start bot command polling
+print("🤖 Bot is now live.")
+bot.polling()
