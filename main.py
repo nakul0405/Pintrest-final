@@ -53,8 +53,10 @@ def scrape_saved_pins(username):
     driver = uc.Chrome(options=options)
 
     try:
+        print(f"🔐 Logging in to Pinterest for scraping {username}...")
         driver.get("https://www.pinterest.com/login")
         time.sleep(4)
+
         driver.find_element(By.NAME, "id").send_keys(EMAIL)
         driver.find_element(By.NAME, "password").send_keys(PASSWORD)
         driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
@@ -63,16 +65,29 @@ def scrape_saved_pins(username):
         driver.get(f"https://www.pinterest.com/{username}/_saved")
         time.sleep(5)
 
-        for _ in range(2):
+        # Scroll and re-grab elements AFTER scroll to avoid stale error
+        for _ in range(3):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
+            time.sleep(3)
 
+        # 💡 Freshly grab elements AFTER scroll
+        print("🔍 Extracting fresh pins from DOM...")
         pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
-        pin_links = list(set(["https://www.pinterest.com" + p.get_attribute("href") for p in pins]))
 
-        return pin_links
+        pin_links = []
+        for p in pins:
+            try:
+                href = p.get_attribute("href")
+                if href and "/pin/" in href:
+                    full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
+                    pin_links.append(full_link)
+            except Exception as e:
+                print(f"⚠️ Skipping stale pin: {e}")
+
+        return list(set(pin_links))
+
     except Exception as e:
-        print(f"⚠️ Error scraping {username}: {e}")
+        print(f"❌ Error scraping {username}: {e}")
         return []
     finally:
         driver.quit()
