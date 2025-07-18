@@ -4,6 +4,9 @@ import time
 import telebot
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
+from dotenv import load_dotenv
+
+load_dotenv()  # Load variables from .env file
 
 # Load from Zeabur environment variables
 EMAIL = os.environ["PINTEREST_EMAIL"]
