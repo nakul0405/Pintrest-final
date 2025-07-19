@@ -65,64 +65,67 @@ def scrape_saved_pins(username):
     try:
         print(f"🔐 Logging in to Pinterest for scraping {username}...")
 
-        # ✅ Load cookies if available
+        logged_in = False
+
+        # ✅ Try using cookies if available
         if os.path.exists("cookies.json"):
             driver.get("https://www.pinterest.com/")
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
             for cookie in cookies:
-                cookie.pop("sameSite", None)
-                cookie.pop("domain", None)
-                driver.add_cookie(cookie)
+                if "sameSite" in cookie:
+                    del cookie["sameSite"]
+                try:
+                    driver.add_cookie(cookie)
+                except:
+                    pass  # Skip invalid cookies
             driver.refresh()
-            time.sleep(3)
+            time.sleep(4)
 
-        driver.get("https://www.pinterest.com/login")
-        time.sleep(4)
+            # Check if still logged in
+            if "Log in" not in driver.page_source and "password" not in driver.page_source:
+                print("✅ Logged in via cookies.")
+                logged_in = True
 
-        # Check if already logged in
-        if "Log in" not in driver.page_source and "password" not in driver.page_source:
-            print("✅ Already logged in via cookies.")
-        else:
-            print(f"🔐 Logging in to Pinterest for scraping {username}...")
+        # ❌ If not logged in, do fresh login
+        if not logged_in:
+            print("🔁 Performing fresh login...")
             driver.get("https://www.pinterest.com/login")
             time.sleep(4)
-            driver.find_element(By.CSS_SELECTOR, 'input[type="email"]').send_keys(EMAIL)
+            driver.find_element(By.NAME, "id").send_keys(EMAIL)
             driver.find_element(By.NAME, "password").send_keys(PASSWORD)
             driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
             time.sleep(6)
 
-            # ✅ Save cookies after fresh login
+            # Save cookies
             with open("cookies.json", "w") as f:
                 json.dump(driver.get_cookies(), f)
+            logged_in = True
 
+        # ✅ Go to saved pins page
         driver.get(f"https://www.pinterest.com/{username}/_saved")
         time.sleep(5)
 
-        # ✅ Save cookies after login
-        with open("cookies.json", "w") as f:
-            json.dump(driver.get_cookies(), f)
-
-        # Scroll and grab pins after each scroll
-        print("🔍 Extracting fresh pins from DOM...")
-        pin_links = []
-
+        # Scroll to load more pins
         for _ in range(3):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(3)
 
-            pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
-            for p in pins:
-                try:
-                    href = p.get_attribute("href")
-                    if href and "/pin/" in href:
-                        full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
-                        pin_links.append(full_link)
-                except Exception as e:
-                    print(f"⚠️ Skipping pin during scroll: {e}")
+        print("🔍 Extracting fresh pins from DOM...")
+        pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
+
+        pin_links = []
+        for p in pins:
+            try:
+                href = p.get_attribute("href")
+                if href and "/pin/" in href:
+                    full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
+                    pin_links.append(full_link)
+            except Exception as e:
+                print(f"⚠️ Skipping stale pin: {e}")
 
         return list(set(pin_links))
-        
+
     except Exception as e:
         print(f"❌ Error scraping {username}: {e}")
         return []
