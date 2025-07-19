@@ -63,7 +63,6 @@ def scrape_saved_pins(username):
     driver = uc.Chrome(options=options)
 
     try:
-        print(f"🔐 Logging in to Pinterest for scraping {username}...")
 
         # ✅ Load cookies if available
         if os.path.exists("cookies.json"):
