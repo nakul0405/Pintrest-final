@@ -54,35 +54,38 @@ def scrape_saved_pins(username):
 
     try:
         print(f"🔐 Logging in to Pinterest for scraping {username}...")
-# ✅ Load cookies if available
-if os.path.exists("cookies.json"):
-    driver.get("https://www.pinterest.com/")  # Open base URL first
-    with open("cookies.json", "r") as f:
-        cookies = json.load(f)
-    for cookie in cookies:
-        if "sameSite" in cookie:  # Pinterest may not accept that
-            del cookie["sameSite"]
-        driver.add_cookie(cookie)
-    driver.refresh()
-    time.sleep(3)
+
+        # ✅ Load cookies if available
+        if os.path.exists("cookies.json"):
+            driver.get("https://www.pinterest.com/")  # Open base URL first
+            with open("cookies.json", "r") as f:
+                cookies = json.load(f)
+            for cookie in cookies:
+                if "sameSite" in cookie:
+                    del cookie["sameSite"]
+                driver.add_cookie(cookie)
+            driver.refresh()
+            time.sleep(3)
+
         driver.get("https://www.pinterest.com/login")
         time.sleep(4)
-# Check if already logged in
-if "Log in" not in driver.page_source and "password" not in driver.page_source:
-    print("✅ Already logged in via cookies.")
-else:
-    print(f"🔐 Logging in to Pinterest for scraping {username}...")
-    driver.get("https://www.pinterest.com/login")
-    time.sleep(4)
-    driver.find_element(By.NAME, "id").send_keys(EMAIL)
-    driver.find_element(By.NAME, "password").send_keys(PASSWORD)
-    driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-    time.sleep(6)
 
-    # ✅ Save cookies after fresh login
-    with open("cookies.json", "w") as f:
-        json.dump(driver.get_cookies(), f)
-        
+        # Check if already logged in
+        if "Log in" not in driver.page_source and "password" not in driver.page_source:
+            print("✅ Already logged in via cookies.")
+        else:
+            print(f"🔐 Logging in to Pinterest for scraping {username}...")
+            driver.get("https://www.pinterest.com/login")
+            time.sleep(4)
+            driver.find_element(By.NAME, "id").send_keys(EMAIL)
+            driver.find_element(By.NAME, "password").send_keys(PASSWORD)
+            driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+            time.sleep(6)
+
+            # ✅ Save cookies after fresh login
+            with open("cookies.json", "w") as f:
+                json.dump(driver.get_cookies(), f)
+
         driver.find_element(By.NAME, "id").send_keys(EMAIL)
         driver.find_element(By.NAME, "password").send_keys(PASSWORD)
         driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
@@ -94,7 +97,7 @@ else:
         # ✅ Save cookies after login
         with open("cookies.json", "w") as f:
             json.dump(driver.get_cookies(), f)
-            
+
         # Scroll and re-grab elements AFTER scroll to avoid stale error
         for _ in range(3):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
