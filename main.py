@@ -195,7 +195,7 @@ def start_polling_loop():
     while True:
         print("⏰ Running scheduled check...")
         check_all_profiles()
-        time.sleep(90)
+        time.sleep(300)
 
 Thread(target=start_polling_loop, daemon=True).start()
 print("🤖 Bot is now live.")
