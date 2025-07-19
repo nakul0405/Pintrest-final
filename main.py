@@ -104,25 +104,25 @@ def scrape_saved_pins(username):
             json.dump(driver.get_cookies(), f)
 
         # Scroll and re-grab elements AFTER scroll to avoid stale error
+        pin_links = set()
+
         for _ in range(3):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(3)
 
-        # 💡 Freshly grab elements AFTER scroll
-        print("🔍 Extracting fresh pins from DOM...")
-        pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
+            # Re-fetch pins after scroll
+            pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
 
-        pin_links = []
-        for p in pins:
-            try:
-                href = p.get_attribute("href")
-                if href and "/pin/" in href:
-                    full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
-                    pin_links.append(full_link)
-            except Exception as e:
-                print(f"⚠️ Skipping stale pin: {e}")
+            for p in pins:
+                try:
+                    href = p.get_attribute("href")
+                    if href and "/pin/" in href:
+                        full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
+                        pin_links.add(full_link)                
+                except:
+                    continue  # Silently skip stale ones
 
-        return list(set(pin_links))
+        return list(pin_links)
 
     except Exception as e:
         print(f"❌ Error scraping {username}: {e}")
