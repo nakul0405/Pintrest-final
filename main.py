@@ -7,7 +7,6 @@ from selenium.webdriver.common.by import By
 from threading import Thread
 import requests
 
-# Load environment variables (Zeabur: use panel, no .env)
 EMAIL = os.environ["PINTEREST_EMAIL"]
 PASSWORD = os.environ["PINTEREST_PASSWORD"]
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -15,11 +14,9 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Track multiple profiles (saved in a local file)
 TRACK_FILE = "tracked_profiles.json"
 PIN_DB_FILE = "old_pins.json"
 
-# Load tracked profiles
 def load_profiles():
     try:
         with open(TRACK_FILE, 'r') as f:
@@ -27,12 +24,10 @@ def load_profiles():
     except:
         return []
 
-# Save updated profile list
 def save_profiles(profiles):
     with open(TRACK_FILE, 'w') as f:
         json.dump(profiles, f)
 
-# Load already seen pins
 def load_old_pins():
     try:
         with open(PIN_DB_FILE, "r") as f:
@@ -40,12 +35,10 @@ def load_old_pins():
     except:
         return {}
 
-# Save updated pin db
 def save_old_pins(data):
     with open(PIN_DB_FILE, "w") as f:
         json.dump(data, f)
 
-# Get thumbnail of pin
 def extract_image_url(pin_url):
     try:
         res = requests.get(pin_url)
@@ -54,7 +47,6 @@ def extract_image_url(pin_url):
     except:
         return None
 
-# Login + scrape saved pins
 def scrape_saved_pins(username):
     options = uc.ChromeOptions()
     options.add_argument("--headless")
@@ -63,66 +55,57 @@ def scrape_saved_pins(username):
     driver = uc.Chrome(options=options)
 
     try:
-        print(f"🔍 Checking pins for: {username}")
+        print(f"🔐 Logging in to Pinterest for scraping {username}...")
 
-        # ✅ Load cookies if available
+        driver.get("https://www.pinterest.com/")
+        time.sleep(2)
+
         if os.path.exists("cookies.json"):
-            driver.get("https://www.pinterest.com/")
             with open("cookies.json", "r") as f:
                 cookies = json.load(f)
             for cookie in cookies:
                 cookie.pop("sameSite", None)
                 cookie.pop("domain", None)
-                driver.add_cookie(cookie)
+                try:
+                    driver.add_cookie(cookie)
+                except:
+                    pass
             driver.refresh()
-            time.sleep(3)
+            time.sleep(2)
 
         driver.get("https://www.pinterest.com/login")
-        time.sleep(4)
+        time.sleep(3)
 
-        # Check if already logged in
-        if "Log in" not in driver.page_source and "password" not in driver.page_source:
-            print("✅ Already logged in via cookies.")
-        else:
+        if "Log in" in driver.page_source or "password" in driver.page_source:
             print("🔁 Performing fresh login...")
-            driver.get("https://www.pinterest.com/login")
-            time.sleep(4)
             driver.find_element(By.CSS_SELECTOR, 'input[type="email"]').send_keys(EMAIL)
             driver.find_element(By.NAME, "password").send_keys(PASSWORD)
             driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
             time.sleep(6)
-
-            # ✅ Save cookies after fresh login
             with open("cookies.json", "w") as f:
                 json.dump(driver.get_cookies(), f)
+        else:
+            print("✅ Logged in using cookies.")
 
         driver.get(f"https://www.pinterest.com/{username}/_saved")
         time.sleep(5)
 
-        # ✅ Save cookies after login
-        with open("cookies.json", "w") as f:
-            json.dump(driver.get_cookies(), f)
-
-        # Scroll and re-grab elements AFTER scroll to avoid stale error
-        pin_links = set()
-
         for _ in range(3):
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(3)
+            time.sleep(2)
 
-            # Re-fetch pins after scroll
-            pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
+        pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
+        pin_links = []
+        for p in pins:
+            try:
+                href = p.get_attribute("href")
+                if href and "/pin/" in href:
+                    full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
+                    pin_links.append(full_link)
+            except:
+                continue
 
-            for p in pins:
-                try:
-                    href = p.get_attribute("href")
-                    if href and "/pin/" in href:
-                        full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
-                        pin_links.add(full_link)                
-                except:
-                    continue  # Silently skip stale ones
-
-        return list(pin_links)
+        return list(set(pin_links))
 
     except Exception as e:
         print(f"❌ Error scraping {username}: {e}")
@@ -130,7 +113,6 @@ def scrape_saved_pins(username):
     finally:
         driver.quit()
 
-# Check for new pins and notify
 def check_all_profiles():
     tracked = load_profiles()
     old_data = load_old_pins()
@@ -155,12 +137,10 @@ def check_all_profiles():
 
     save_old_pins(old_data)
 
-# Telegram command: /start
 @bot.message_handler(commands=['start'])
 def start_handler(message):
     bot.reply_to(message, "👋 Bot is live! Use /track <pinterest_profile_url> to track saved pins.")
 
-# Telegram command: /track <url>
 @bot.message_handler(commands=['track'])
 def track_handler(message):
     text = message.text.strip()
@@ -170,12 +150,10 @@ def track_handler(message):
         bot.reply_to(message, "❌ Invalid format. Use: /track https://www.pinterest.com/username/_saved")
         return
 
-    # Extract username from URL
-    url = parts[1]
     try:
-        username = url.split("pinterest.com/")[1].split("/")[0]
+        username = parts[1].split("pinterest.com/")[1].split("/")[0]
     except:
-        bot.reply_to(message, "❌ Couldn't extract username. Check the URL.")
+        bot.reply_to(message, "❌ Couldn't extract username.")
         return
 
     tracked = load_profiles()
@@ -185,9 +163,8 @@ def track_handler(message):
 
     tracked.append(username)
     save_profiles(tracked)
-    bot.reply_to(message, f"📌 Now tracking `{username}` for new saved pins.")
+    bot.reply_to(message, f"📌 Now tracking `{username}`.")
 
-# Telegram command: /status
 @bot.message_handler(commands=['status'])
 def status_handler(message):
     tracked = load_profiles()
@@ -197,7 +174,6 @@ def status_handler(message):
         msg = "📊 Currently tracking:\n" + "\n".join(f"• {u}" for u in tracked)
         bot.reply_to(message, msg)
 
-# Telegram command: /stop <username>
 @bot.message_handler(commands=['stop'])
 def stop_handler(message):
     parts = message.text.strip().split()
@@ -215,16 +191,12 @@ def stop_handler(message):
     save_profiles(tracked)
     bot.reply_to(message, f"🛑 Stopped tracking `{username}`.")
 
-# Background thread for periodic checking
 def start_polling_loop():
     while True:
         print("⏰ Running scheduled check...")
         check_all_profiles()
-        time.sleep(90)  # Every 15 minutes
+        time.sleep(90)
 
-# Start background thread
 Thread(target=start_polling_loop, daemon=True).start()
-
-# Start bot command polling
 print("🤖 Bot is now live.")
 bot.polling()
