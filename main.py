@@ -63,6 +63,7 @@ def scrape_saved_pins(username):
     driver = uc.Chrome(options=options)
 
     try:
+        print(f"🔍 Checking pins for: {username}")
 
         # ✅ Load cookies if available
         if os.path.exists("cookies.json"):
@@ -83,7 +84,7 @@ def scrape_saved_pins(username):
         if "Log in" not in driver.page_source and "password" not in driver.page_source:
             print("✅ Already logged in via cookies.")
         else:
-            print(f"🔐 Logging in to Pinterest for scraping {username}...")
+            print("🔁 Performing fresh login...")
             driver.get("https://www.pinterest.com/login")
             time.sleep(4)
             driver.find_element(By.CSS_SELECTOR, 'input[type="email"]').send_keys(EMAIL)
