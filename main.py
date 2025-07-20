@@ -49,7 +49,7 @@ def save_old_pins(data):
 def extract_image_url(pin_url):
     try:
         res = requests.get(pin_url)
-        if "og:image" in res.text:
+        if 'property="og:image"' in res.text:
             return res.text.split('property="og:image"')[1].split('content="')[1].split('"')[0]
     except:
         return None
@@ -99,8 +99,9 @@ def scrape_saved_pins(username):
 
 # Check for new pins and notify
 def check_all_profiles():
-    tracked = load_profiles()
     old_data = load_old_pins()
+
+    tracked = load_profiles()  # ✅ Reload each time
 
     for username in tracked:
         print(f"🔍 Checking pins for: {username}")
@@ -113,7 +114,11 @@ def check_all_profiles():
         new_pins = [p for p in pins if p not in old_data[username]]
         if new_pins:
             for pin in new_pins:
-                bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
+                img = extract_image_url(pin)  # ✅ get thumbnail
+                if img:
+                    bot.send_photo(CHAT_ID, img, caption=f"🆕 New pin by {username}:\n{pin}")
+                else:
+                    bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
             old_data[username].extend(new_pins)
 
     save_old_pins(old_data)
