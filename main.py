@@ -116,10 +116,13 @@ def check_all_profiles():
             for pin in new_pins:
                 img = extract_image_url(pin)  # ✅ get thumbnail
                 if img:
-                    bot.send_photo(CHAT_ID, img, caption=f"🆕 New pin by {username}:\n{pin}")
-                else:
-                    bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
-            old_data[username].extend(new_pins)
+        try:
+        bot.send_photo(CHAT_ID, img, caption=f"🆕 New pin by {username}:\n{pin}")
+    except Exception as e:
+        print(f"⚠️ Failed to send photo: {e}")
+        bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
+else:
+    bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
 
     save_old_pins(old_data)
 
