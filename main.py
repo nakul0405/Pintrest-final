@@ -85,9 +85,17 @@ def scrape_saved_pins(username):
                 href = p.get_attribute("href")
                 if href and "/pin/" in href:
                     full_link = href if href.startswith("http") else "https://www.pinterest.com" + href
-                    pin_links.append(full_link)
+
+                    # 🖼️ Try to find the image inside the anchor tag
+                    img_tag = p.find_element(By.TAG_NAME, "img")
+                    img_url = img_tag.get_attribute("src") if img_tag else None
+
+                    pin_links.append({
+                        "link": full_link,
+                        "image": img_url
+                    })
             except Exception as e:
-                print(f"⚠️ Skipping stale pin: {e}")
+                print(f"⚠️ Skipping pin due to error: {e}")
 
         return list(set(pin_links))
 
