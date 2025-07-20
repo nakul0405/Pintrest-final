@@ -77,7 +77,25 @@ def scrape_saved_pins(username):
             time.sleep(2)
 
         pins = driver.find_elements(By.XPATH, '//a[contains(@href, "/pin/")]')
-        pin_links = list(set(["https://www.pinterest.com" + p.get_attribute("href") for p in pins]))
+        
+        pin_links = []
+        for p in pins:
+            try:
+                href = p.get_attribute("href")
+                if href and "/pin/" in href:
+                    full_link = "https://www.pinterest.com" + href if href.startswith("/") else href
+                    pin_links.append(full_link)
+            except Exception as e:
+                print(f"⚠️ Skipping stale pin: {e}")
+
+        return list(set(pin_links))
+
+    except Exception as e:
+        print(f"❌ Error scraping {username}: {e}")
+        return []
+    finally:
+        driver.quit()
+
 
         return pin_links
     except Exception as e:
