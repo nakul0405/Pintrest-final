@@ -5,6 +5,7 @@ import telebot
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from threading import Thread
+import requests
 
 # Load environment variables (Zeabur: use panel, no .env)
 EMAIL = os.environ["PINTEREST_EMAIL"]
