@@ -38,7 +38,7 @@ def load_old_pins():
         with open(PIN_DB_FILE, "r") as f:
             return json.load(f)
     except:
-        return {}
+        return {}  # ✅ Return a dict, not a list
 
 # Save updated pin db
 def save_old_pins(data):
