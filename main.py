@@ -119,18 +119,20 @@ def check_all_profiles():
             old_data[username] = pins
             continue
 
-        new_pins = [p for p in pins if p not in old_data[username]]
+        new_pins = [p for p in pins if p['link'] not in old_data.get(username, [])]
+
         if new_pins:
             for pin in new_pins:
-                img = extract_image_url(pin)  # ✅ get thumbnail
-                if img:
-                    try:
-                        bot.send_photo(CHAT_ID, img, caption=f"🆕 New pin by {username}:\n{pin}")
-                    except Exception as e:
-                        print(f"⚠️ Failed to send photo: {e}")
-                        bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
+                if pin["image"]:
+                    bot.send_photo(
+                        CHAT_ID,
+                        pin["image"],
+                        caption=f"🆕 New pin by {username}:\n{pin['link']}"
+                    )
                 else:
-                     bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin}")
+                    bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin['link']}")
+
+            old_data[username].extend([p['link'] for p in new_pins])
 
     save_old_pins(old_data)
 
