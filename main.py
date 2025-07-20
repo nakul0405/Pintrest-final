@@ -45,14 +45,6 @@ def save_old_pins(data):
     with open(PIN_DB_FILE, "w") as f:
         json.dump(data, f)
 
-# Get thumbnail of pin
-def extract_image_url(pin_url):
-    try:
-        res = requests.get(pin_url)
-        if 'property="og:image"' in res.text:
-            return res.text.split('property="og:image"')[1].split('content="')[1].split('"')[0]
-    except:
-        return None
         
 # Login + scrape saved pins
 def scrape_saved_pins(username):
@@ -85,10 +77,11 @@ def scrape_saved_pins(username):
                 href = p.get_attribute("href")
                 if href and "/pin/" in href:
                     full_link = href if href.startswith("http") else "https://www.pinterest.com" + href
-
-                    # 🖼️ Try to find the image inside the anchor tag
-                    img_url = extract_image_url(full_link)
                     
+                    # ✅ Get image from inside the anchor tag
+                    img_tag = p.find_element(By.TAG_NAME, "img")
+                    img_url = img_tag.get_attribute("src") if img_tag else None
+
                     pin_links.append({
                         "link": full_link,
                         "image": img_url
@@ -96,7 +89,7 @@ def scrape_saved_pins(username):
             except Exception as e:
                 print(f"⚠️ Skipping pin due to error: {e}")
 
-        return list(set([json.dumps(p) for p in pin_links]))  # To avoid unhashable dict error in set
+        return list(set([json.dumps(p) for p in pin_links]))  # Avoid unhashable error
 
     except Exception as e:
         print(f"❌ Error scraping {username}: {e}")
