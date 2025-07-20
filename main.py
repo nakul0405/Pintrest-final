@@ -44,7 +44,23 @@ def load_old_pins():
 def save_old_pins(data):
     with open(PIN_DB_FILE, "w") as f:
         json.dump(data, f)
-
+        
+def extract_image_url(pin_url):
+    try:
+        res = requests.get(pin_url)
+        if 'property="og:image"' in res.text:
+            return res.text.split('property="og:image"')[1].split('content="')[1].split('"')[0]
+    except:
+        return None
+        
+# Upgrade image URL from thumbnail to high-quality
+def upgrade_image_url(url):
+    try:
+        if "pinimg.com" in url:
+            return url.replace("/236x/", "/originals/").replace("/474x/", "/originals/").replace("/564x/", "/originals/")
+        return url
+    except:
+        return url
         
 # Login + scrape saved pins
 def scrape_saved_pins(username):
@@ -80,7 +96,8 @@ def scrape_saved_pins(username):
                     
                     # ✅ Get image from inside the anchor tag
                     img_tag = p.find_element(By.TAG_NAME, "img")
-                    img_url = img_tag.get_attribute("src") if img_tag else None
+                    raw_img_url = img_tag.get_attribute("src") if img_tag else None
+                    img_url = upgrade_image_url(raw_img_url)
 
                     pin_links.append({
                         "link": full_link,
