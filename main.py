@@ -124,12 +124,17 @@ def check_all_profiles():
 
         if new_pins:
             for pin in new_pins:
-                if pin["image"]:
-                    bot.send_photo(
-                        CHAT_ID,
-                        pin["image"],
-                        caption=f"🆕 New pin by {username}:\n{pin['link']}"
-                    )
+                if pin["image"] and pin["image"].startswith("http"):
+                   try:
+                       bot.send_photo(
+                           CHAT_ID,
+                           pin["image"],
+                           caption=f"🆕 New pin by {username}:\n{pin['link']}"
+                       
+                       )
+                   except Exception as e:
+                       print(f"⚠️ Error sending photo: {e}")
+                       bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin['link']}")
                 else:
                     bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin['link']}")
 
