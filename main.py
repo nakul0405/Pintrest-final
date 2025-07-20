@@ -87,9 +87,8 @@ def scrape_saved_pins(username):
                     full_link = href if href.startswith("http") else "https://www.pinterest.com" + href
 
                     # 🖼️ Try to find the image inside the anchor tag
-                    img_tag = p.find_element(By.TAG_NAME, "img")
-                    img_url = img_tag.get_attribute("src") if img_tag else None
-
+                    img_url = extract_image_url(full_link)
+                    
                     pin_links.append({
                         "link": full_link,
                         "image": img_url
