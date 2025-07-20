@@ -44,6 +44,15 @@ def save_old_pins(data):
     with open(PIN_DB_FILE, "w") as f:
         json.dump(data, f)
 
+# Get thumbnail of pin
+def extract_image_url(pin_url):
+    try:
+        res = requests.get(pin_url)
+        if "og:image" in res.text:
+            return res.text.split('property="og:image"')[1].split('content="')[1].split('"')[0]
+    except:
+        return None
+        
 # Login + scrape saved pins
 def scrape_saved_pins(username):
     options = uc.ChromeOptions()
