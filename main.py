@@ -7,7 +7,6 @@ from selenium.webdriver.common.by import By
 from threading import Thread
 import requests
 
-# Load environment variables (Zeabur: use panel, no .env)
 EMAIL = os.environ["PINTEREST_EMAIL"]
 PASSWORD = os.environ["PINTEREST_PASSWORD"]
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -15,11 +14,9 @@ CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Track multiple profiles (saved in a local file)
 TRACK_FILE = "tracked_profiles.json"
 PIN_DB_FILE = "old_pins.json"
 
-# Load tracked profiles
 def load_profiles():
     try:
         with open(TRACK_FILE, 'r') as f:
@@ -27,25 +24,21 @@ def load_profiles():
     except:
         return []
 
-# Save updated profile list
 def save_profiles(profiles):
     with open(TRACK_FILE, 'w') as f:
         json.dump(profiles, f)
 
-# Load already seen pins
 def load_old_pins():
     try:
         with open(PIN_DB_FILE, "r") as f:
             return json.load(f)
     except:
-        return {}  # ✅ Return a dict, not a list
+        return {}
 
-# Save updated pin db
 def save_old_pins(data):
     with open(PIN_DB_FILE, "w") as f:
         json.dump(data, f)
 
-# Get thumbnail of pin
 def extract_image_url(pin_url):
     try:
         res = requests.get(pin_url)
@@ -54,7 +47,6 @@ def extract_image_url(pin_url):
     except:
         return None
         
-# Login + scrape saved pins
 def scrape_saved_pins(username):
     options = uc.ChromeOptions()
     options.add_argument("--headless")
@@ -85,11 +77,8 @@ def scrape_saved_pins(username):
                 href = p.get_attribute("href")
                 if href and "/pin/" in href:
                     full_link = href if href.startswith("http") else "https://www.pinterest.com" + href
-
-                    # 🖼️ Try to find the image inside the anchor tag
                     img_tag = p.find_element(By.TAG_NAME, "img")
                     img_url = img_tag.get_attribute("src") if img_tag else None
-
                     pin_links.append({
                         "link": full_link,
                         "image": img_url
@@ -97,7 +86,11 @@ def scrape_saved_pins(username):
             except Exception as e:
                 print(f"⚠️ Skipping pin due to error: {e}")
 
-        return list(set(pin_links))
+        # ✅ Fix: Remove duplicates by using a dict keyed by link
+        unique = {}
+        for pin in pin_links:
+            unique[pin["link"]] = pin
+        return list(unique.values())
 
     except Exception as e:
         print(f"❌ Error scraping {username}: {e}")
@@ -105,21 +98,16 @@ def scrape_saved_pins(username):
     finally:
         driver.quit()
 
-# Check for new pins and notify
 def check_all_profiles():
     old_data = load_old_pins()
-
-    tracked = load_profiles()  # ✅ Reload each time
+    tracked = load_profiles()
 
     for username in tracked:
         print(f"🔍 Checking pins for: {username}")
         pins = scrape_saved_pins(username)
 
-        if username not in old_data:
-            old_data[username] = pins
-            continue
-
-        new_pins = [p for p in pins if p['link'] not in old_data.get(username, [])]
+        old_links = old_data.get(username, [])
+        new_pins = [p for p in pins if p['link'] not in old_links]
 
         if new_pins:
             for pin in new_pins:
@@ -132,7 +120,9 @@ def check_all_profiles():
                 else:
                     bot.send_message(CHAT_ID, f"🆕 New pin by {username}:\n{pin['link']}")
 
-            old_data[username].extend([p['link'] for p in new_pins])
+            # ✅ Save only links in old_data
+            old_links.extend([p['link'] for p in new_pins])
+            old_data[username] = old_links
 
     save_old_pins(old_data)
 
