@@ -96,8 +96,12 @@ def scrape_saved_pins(username):
                     
                     # ✅ Get image from inside the anchor tag
                     img_tag = p.find_element(By.TAG_NAME, "img")
-                    raw_img_url = img_tag.get_attribute("src") if img_tag else None
-                    img_url = upgrade_image_url(raw_img_url)
+                    img_url = None
+                    if img_tag:
+                        srcset = img_tag.get_attribute("srcset")
+                        if srcset:
+                            # Get the highest resolution image (usually the last in the srcset)
+                            img_url = srcset.split(",")[-1].strip().split(" ")[0]
 
                     pin_links.append({
                         "link": full_link,
